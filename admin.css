@@ -1,0 +1,89 @@
+<?php
+/* ACESSO GERAL — painel do admin: números do site, quem entrou
+   recentemente (com aviso do que é novo desde a última visita) e
+   os últimos cadastros, cada um com ações rápidas. */
+require 'config.php';
+exigir_admin();
+$adm = admin_usuario();
+
+$t = $pdo->query("SELECT (SELECT COUNT(*) FROM perfis) AS perfis, (SELECT COUNT(*) FROM vagas) AS vagas,
+                          (SELECT COUNT(*) FROM posts) AS posts, (SELECT COUNT(*) FROM candidaturas) AS cands,
+                          (SELECT COUNT(*) FROM perfis WHERE bloqueado=1) AS bloqueados")->fetch();
+
+$desde = $adm['visto_em']; // guardado ANTES de marcar como visto, para as etiquetas "novo" abaixo
+
+$acessos = $pdo->query("SELECT a.criado, p.id, p.nome, p.foto, p.cidade, p.tipo
+                         FROM acessos a JOIN perfis p ON p.id = a.perfil_id
+                         ORDER BY a.criado DESC LIMIT 20")->fetchAll();
+
+$recentes = $pdo->query("SELECT * FROM perfis ORDER BY criado DESC LIMIT 6")->fetchAll();
+
+admin_marcar_visto($adm['id']); // a partir daqui a contagem do sininho zera
+
+$titulo = 'Acesso geral';
+$paginaAdm = 'geral';
+include 'inc/topo.php';
+?>
+<div class="section-title"><h2>Acesso geral</h2><span>painel do administrador</span></div>
+
+<div class="hero" style="margin-bottom:20px">
+  <div class="hero-in">
+    <div class="hero-stats" style="margin-top:0">
+      <div class="stat t"><b><?= (int)$t['perfis'] ?></b><span>cadastros</span></div>
+      <div class="stat h"><b><?= (int)$t['vagas'] ?></b><span>vagas</span></div>
+      <div class="stat a"><b><?= (int)$t['posts'] ?></b><span>publicações</span></div>
+      <div class="stat"><b><?= (int)$t['cands'] ?></b><span>candidaturas</span></div>
+      <div class="stat"><b style="color:var(--hot)"><?= (int)$t['bloqueados'] ?></b><span>contas suspensas</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="stack">
+  <div>
+    <h3 class="box-title">Acessos recentes <?php if ($desde): ?><span class="meta">— o que tem <span class="novo-tag" style="margin-left:0">novo</span> é desde sua última visita</span><?php endif; ?></h3>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Quem entrou</th><th>Cidade</th><th>Tipo</th><th>Quando</th></tr></thead>
+        <tbody>
+        <?php if (!$acessos): ?><tr><td colspan="4" class="meta" style="text-align:center;padding:26px">Ainda não há registros de acesso. Eles aparecem aqui a cada login de um usuário.</td></tr><?php endif; ?>
+        <?php foreach ($acessos as $a): $novo = $desde && $a['criado'] > $desde; ?>
+          <tr>
+            <td>
+              <a class="row-flex" href="../perfil_ver.php?id=<?= (int)$a['id'] ?>" style="text-decoration:none">
+                <?= avatar($a, 'sm') ?><span class="nm2" style="color:var(--ink)"><?= e($a['nome']) ?></span>
+              </a>
+              <?php if ($novo): ?><span class="novo-tag">novo</span><?php endif; ?>
+            </td>
+            <td class="meta"><?= e(cidade_curta($a['cidade'])) ?></td>
+            <td class="meta"><?= e($a['tipo']) ?></td>
+            <td class="meta"><?= quando($a['criado']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <h3 class="box-title">Últimos cadastros</h3>
+    <div class="grid">
+      <?php foreach ($recentes as $p): ?>
+        <div class="pcard">
+          <a class="pcard-top" href="../perfil_ver.php?id=<?= (int)$p['id'] ?>" style="width:100%">
+            <?= avatar($p) ?>
+            <div style="min-width:0">
+              <h3><?= e($p['nome']) ?> <?php if ($p['bloqueado']): ?><span class="bloq-tag">suspenso</span><?php endif; ?></h3>
+              <div class="meta"><?= e($p['categoria']) ?> · <?= e(cidade_curta($p['cidade'])) ?></div>
+            </div>
+          </a>
+          <div class="pcard-foot">
+            <span class="chip <?= $p['tipo'] === 'Empresa' ? 'teal' : 'amber' ?>"><?= e($p['tipo']) ?></span>
+            <span class="meta" style="margin-left:auto"><?= quando($p['criado']) ?></span>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+    <p style="margin-top:14px"><a class="btn btn-ghost btn-sm" href="perfis.php">Ver todos os cadastros →</a></p>
+  </div>
+</div>
+<?php include 'inc/rodape.php'; ?>
